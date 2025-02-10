@@ -1,0 +1,272 @@
+<!-- v0.1 -->
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Tilt Arena</title>
+  <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
+  <style>
+    /* Overall body styling */
+    body {
+      margin: 0;
+      background: #1a1a1a;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      font-family: 'Press Start 2P', cursive;
+      color: #fff;
+      min-height: 100vh;
+    }
+    /* Volume control */
+    #volume {
+      position: fixed;
+      top: 20px;
+      right: 20px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    #volume-btn {
+      width: 24px;
+      height: 24px;
+      background: #333;
+      border: 2px solid #666;
+      border-radius: 4px;
+      cursor: pointer;
+      text-align: center;
+      line-height: 24px;
+      font-size: 14px;
+      user-select: none;
+    }
+    /* Stats container */
+    #stats {
+      width: 320px; /* Matches grid width (5 * 60 + 4 * 5) */
+      margin: 20px 0;
+    }
+    /* Peaks section with glowing effect */
+    #peaks {
+      display: flex;
+      justify-content: space-between;
+      margin-bottom: 15px;
+    }
+    .peak-label {
+      color: #ffd700;
+      font-size: 12px;
+      text-shadow: 2px 2px #000;
+    }
+    .peak-value {
+      font-size: 14px;
+      color: #fff;
+      transition: color 0.3s;
+    }
+    .peak-value.highlight {
+      color: #ffd700;
+      text-shadow: 0 0 8px #ffd700;
+    }
+    /* Scores styling */
+    #scores {
+      display: flex;
+      justify-content: space-between;
+      margin-bottom: 10px;
+    }
+    .score {
+      font-size: 24px;
+    }
+    .score.red { color: #ff4444; }
+    .score.blue { color: #0066ff; }
+    /* Ratio bar */
+    #ratio-bar {
+      width: 320px;
+      height: 20px;
+      background: #0066ff;
+      border-radius: 10px;
+      overflow: hidden;
+      margin: 0 auto 20px auto;
+      position: relative;
+    }
+    #red-ratio {
+      height: 100%;
+      background: #ff4444;
+      transition: width 0.3s ease-out;
+    }
+    /* Grid - using the perfect spacing & roundness from v1 */
+    #grid {
+      display: grid;
+      grid-template-columns: repeat(5, 60px);
+      gap: 5px;
+      margin: 20px 0;
+    }
+    .tile {
+      width: 60px;
+      height: 60px;
+      background: #222;
+      border-radius: 4px;
+      transition: background 0.3s;
+      /* Optional: if you prefer a border from v2/v3, uncomment below */
+      /* border: 2px solid #333; */
+    }
+    /* Instructions */
+    #instructions {
+      margin-top: 20px;
+      color: #888;
+      font-size: 12px;
+      text-align: center;
+      white-space: pre-line;
+    }
+  </style>
+</head>
+<body>
+  <div id="volume">
+    <div id="volume-btn">🔊</div>
+  </div>
+
+  <div id="stats">
+    <div id="peaks">
+      <div>
+        <div class="peak-label">RED PEAK</div>
+        <div id="red-peak" class="peak-value">+0</div>
+      </div>
+      <div>
+        <div class="peak-label">BLUE PEAK</div>
+        <div id="blue-peak" class="peak-value">+0</div>
+      </div>
+    </div>
+    <div id="scores">
+      <div class="score red">🔴<span id="red">0</span></div>
+      <div class="score blue">🔵<span id="blue">0</span></div>
+    </div>
+    <div id="ratio-bar">
+      <div id="red-ratio"></div>
+    </div>
+  </div>
+
+  <div id="grid"></div>
+  <div id="instructions">CLICK TO TILT</div>
+
+  <script>
+    const GRID_SIZE = 5;
+    let cycleSpeed = 800;
+    let redScore = 0;
+    let blueScore = 0;
+    let redPeak = 0;
+    let bluePeak = 0;
+    let isLocked = false;
+    let cycleInterval;
+    let masterVolume = 0.5;
+
+    // Setup Audio Context and Volume Control
+    const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+    const gainNode = audioContext.createGain();
+    gainNode.connect(audioContext.destination);
+    gainNode.gain.value = masterVolume;
+
+    const volumeLevels = [0, 0.3, 0.6, 1];
+    let currentVolume = 2;
+    document.getElementById('volume-btn').addEventListener('click', () => {
+      currentVolume = (currentVolume + 1) % volumeLevels.length;
+      masterVolume = volumeLevels[currentVolume];
+      gainNode.gain.value = masterVolume;
+      document.getElementById('volume-btn').textContent =
+        ['🔇', '🔈', '🔉', '🔊'][currentVolume];
+    });
+
+    // Tilt sound effect
+    function playTilt() {
+      const osc = audioContext.createOscillator();
+      osc.type = 'square';
+      osc.frequency.setValueAtTime(120 + Math.random() * 80, audioContext.currentTime);
+      
+      const gain = audioContext.createGain();
+      osc.connect(gain);
+      gain.connect(gainNode);
+      
+      gain.gain.setValueAtTime(masterVolume * 0.3, audioContext.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, audioContext.currentTime + 0.2);
+      
+      osc.start();
+      osc.stop(audioContext.currentTime + 0.25);
+    }
+
+    // Grid setup using version 1's grid design
+    const grid = document.getElementById('grid');
+    const tiles = [];
+    // Using an array to track state: true = red, false = blue
+    const tileStates = new Array(GRID_SIZE * GRID_SIZE).fill(false);
+    for (let i = 0; i < GRID_SIZE * GRID_SIZE; i++) {
+      const tile = document.createElement('div');
+      tile.className = 'tile';
+      grid.appendChild(tile);
+      tiles.push(tile);
+    }
+
+    // Start cycling colors (randomly red or blue)
+    function startCycle() {
+      cycleInterval = setInterval(() => {
+        tiles.forEach((tile, i) => {
+          const isRed = Math.random() > 0.5;
+          tileStates[i] = isRed;
+          tile.style.background = isRed ? '#ff4444' : '#0066ff';
+        });
+      }, cycleSpeed);
+    }
+    startCycle();
+
+    // Update peaks with glowing effect
+    function updatePeaks() {
+      const currentRedPeak = redScore - blueScore;
+      const currentBluePeak = blueScore - redScore;
+      
+      const redPeakElement = document.getElementById('red-peak');
+      const bluePeakElement = document.getElementById('blue-peak');
+      
+      if (currentRedPeak > redPeak) {
+        redPeak = currentRedPeak;
+        redPeakElement.textContent = `+${redPeak}`;
+        redPeakElement.classList.add('highlight');
+        setTimeout(() => redPeakElement.classList.remove('highlight'), 500);
+      }
+      if (currentBluePeak > bluePeak) {
+        bluePeak = currentBluePeak;
+        bluePeakElement.textContent = `+${bluePeak}`;
+        bluePeakElement.classList.add('highlight');
+        setTimeout(() => bluePeakElement.classList.remove('highlight'), 500);
+      }
+    }
+
+    // Update ratio bar width
+    function updateRatio() {
+      const total = redScore + blueScore;
+      const redWidth = total === 0 ? 0 : (redScore / total) * 100;
+      document.getElementById('red-ratio').style.width = `${redWidth}%`;
+    }
+
+    // Click handler to lock the grid and update scores
+    grid.addEventListener('click', () => {
+      if (isLocked) return;
+      
+      isLocked = true;
+      clearInterval(cycleInterval);
+      playTilt();
+      
+      // Count red and blue tiles using the stored states
+      const redCount = tileStates.filter(state => state).length;
+      const blueCount = GRID_SIZE * GRID_SIZE - redCount;
+      
+      redScore += redCount;
+      blueScore += blueCount;
+      
+      document.getElementById('red').textContent = redScore;
+      document.getElementById('blue').textContent = blueScore;
+      updatePeaks();
+      updateRatio();
+      
+      // Increase cycling speed (min 200ms)
+      cycleSpeed = Math.max(200, cycleSpeed * 0.9);
+      setTimeout(() => {
+        tiles.forEach(tile => tile.style.background = '#222');
+        isLocked = false;
+        startCycle();
+      }, 1500);
+    });
+  </script>
+</body>
+</html>
