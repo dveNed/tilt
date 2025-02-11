@@ -1,11 +1,11 @@
-<!-- v2.7.1 -->
+<!-- v0.2.8 -->
 <!DOCTYPE html>
 <html>
 <head>
   <title>Tilt Arena</title>
   <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
   <style>
-    /* Dynamic animated background for retro–arcade vibe */
+    /* Dynamic animated gradient background for a retro–arcade vibe */
     body {
       margin: 0;
       background: linear-gradient(45deg, #1a1a1a, #333, #1a1a1a);
@@ -257,14 +257,20 @@
       tiles.push(tile);
     }
     
+    // Function to update tile colors immediately (one cycle iteration)
+    function updateTiles() {
+      tiles.forEach((tile, i) => {
+        const isRed = Math.random() > 0.5;
+        tileStates[i] = isRed;
+        tile.style.background = isRed ? '#ff4444' : '#0066ff';
+      });
+    }
+    
     // Start cycling colors (randomly red or blue)
     function startCycle() {
+      updateTiles(); // Immediately update tiles to new random colors
       cycleInterval = setInterval(() => {
-        tiles.forEach((tile, i) => {
-          const isRed = Math.random() > 0.5;
-          tileStates[i] = isRed;
-          tile.style.background = isRed ? '#ff4444' : '#0066ff';
-        });
+        updateTiles();
       }, cycleSpeed);
     }
     startCycle();
@@ -278,34 +284,39 @@
       const delta = redScore - blueScore;
       const absDelta = Math.abs(delta);
       
+      // For peak purposes, compute current advantage values (only positive values)
+      const redAdv = delta > 0 ? delta : 0;
+      const blueAdv = delta < 0 ? -delta : 0;
+      
       // Update peak values (record positive differences)
-      if (delta > redPeakValue) {
-        redPeakValue = delta;
+      if (redAdv > redPeakValue) {
+        redPeakValue = redAdv;
         const redPeakEl = document.getElementById('red-peak');
         redPeakEl.textContent = '+' + redPeakValue;
         redPeakEl.classList.add('highlight', 'peak-ripple');
         setTimeout(() => redPeakEl.classList.remove('peak-ripple'), 500);
       }
-      if (-delta > bluePeakValue) {
-        bluePeakValue = -delta;
+      if (blueAdv > bluePeakValue) {
+        bluePeakValue = blueAdv;
         const bluePeakEl = document.getElementById('blue-peak');
         bluePeakEl.textContent = '+' + bluePeakValue;
         bluePeakEl.classList.add('highlight', 'peak-ripple');
         setTimeout(() => bluePeakEl.classList.remove('peak-ripple'), 500);
       }
       
-      // Always update top row texts (if not current record, they remain neutral grey)
+      // Always update top row texts
       const redPeakEl = document.getElementById('red-peak');
       const bluePeakEl = document.getElementById('blue-peak');
       redPeakEl.textContent = '+' + redPeakValue;
       bluePeakEl.textContent = '+' + bluePeakValue;
       
-      if (delta === redPeakValue) {
+      // Apply golden highlight only if current advantage equals recorded peak.
+      if (redAdv === redPeakValue && redAdv > 0) {
         redPeakEl.classList.add('highlight');
       } else {
         redPeakEl.classList.remove('highlight');
       }
-      if (-delta === bluePeakValue) {
+      if (blueAdv === bluePeakValue && blueAdv > 0) {
         bluePeakEl.classList.add('highlight');
       } else {
         bluePeakEl.classList.remove('highlight');
@@ -353,7 +364,7 @@
       document.getElementById('ratio-bar').style.transform = `rotate(${currentAngle}deg)`;
     }
     
-    // Click handler: only allow one valid score-adding click per cycle.
+    // Click handler: allow only one valid score-adding click per cycle.
     grid.addEventListener('click', () => {
       if (isLocked) return;
       isLocked = true;
@@ -377,6 +388,7 @@
       // Increase cycling speed (minimum 200ms)
       cycleSpeed = Math.max(200, cycleSpeed * 0.9);
       setTimeout(() => {
+        // Clear tiles by setting them to the default grey.
         tiles.forEach(tile => tile.style.background = '#222');
         isLocked = false;
         grid.style.pointerEvents = 'auto';
