@@ -1,14 +1,16 @@
-<!-- v0.1 -->
+<!-- v2.7.1 -->
 <!DOCTYPE html>
 <html>
 <head>
   <title>Tilt Arena</title>
   <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
   <style>
-    /* Overall body styling */
+    /* Dynamic animated background for retro–arcade vibe */
     body {
       margin: 0;
-      background: #1a1a1a;
+      background: linear-gradient(45deg, #1a1a1a, #333, #1a1a1a);
+      background-size: 600% 600%;
+      animation: gradientShift 15s ease infinite;
       display: flex;
       flex-direction: column;
       align-items: center;
@@ -16,6 +18,12 @@
       color: #fff;
       min-height: 100vh;
     }
+    @keyframes gradientShift {
+      0% { background-position: 0% 50%; }
+      50% { background-position: 100% 50%; }
+      100% { background-position: 0% 50%; }
+    }
+
     /* Volume control */
     #volume {
       position: fixed;
@@ -37,58 +45,95 @@
       font-size: 14px;
       user-select: none;
     }
-    /* Stats container */
-    #stats {
-      width: 320px; /* Matches grid width (5 * 60 + 4 * 5) */
+    
+    /* Scoreboard container */
+    #scoreboard {
+      width: 320px;
       margin: 20px 0;
+      text-align: center;
     }
-    /* Peaks section with glowing effect */
-    #peaks {
+    /* Top row: Peak values; two columns: left and right */
+    #peaks-row {
       display: flex;
       justify-content: space-between;
-      margin-bottom: 15px;
-    }
-    .peak-label {
-      color: #ffd700;
-      font-size: 12px;
-      text-shadow: 2px 2px #000;
-    }
-    .peak-value {
       font-size: 14px;
-      color: #fff;
-      transition: color 0.3s;
+      margin-bottom: 2px;
     }
-    .peak-value.highlight {
-      color: #ffd700;
+    #peaks-row .peak-left {
+      text-align: left;
+      width: 100px;
+      color: #aaa; /* neutral grey by default */
+    }
+    #peaks-row .peak-right {
+      text-align: right;
+      width: 100px;
+      color: #aaa; /* neutral grey by default */
+    }
+    /* Golden glow effect and ripple for new peak */
+    .highlight {
+      color: #ffd700 !important;
       text-shadow: 0 0 8px #ffd700;
     }
-    /* Scores styling */
-    #scores {
+    @keyframes ripple {
+      0% { transform: scale(1); opacity: 1; }
+      100% { transform: scale(1.5); opacity: 0; }
+    }
+    .peak-ripple {
+      animation: ripple 0.5s ease-out;
+    }
+    
+    /* Bottom row: Current scores and net difference */
+    #current-row {
       display: flex;
       justify-content: space-between;
-      margin-bottom: 10px;
-    }
-    .score {
+      align-items: center;
       font-size: 24px;
     }
-    .score.red { color: #ff4444; }
-    .score.blue { color: #0066ff; }
-    /* Ratio bar */
+    #current-row .score-left {
+      width: 100px;
+      text-align: left;
+      color: #ff4444;
+    }
+    #current-row .score-center {
+      width: 120px;
+      text-align: center;
+      font-size: 20px;
+    }
+    #current-row .score-right {
+      width: 100px;
+      text-align: right;
+      color: #0066ff;
+    }
+    
+    /* Ratio bar (seesaw effect) */
     #ratio-bar {
       width: 320px;
       height: 20px;
       background: #0066ff;
-      border-radius: 10px;
+      border: 2px solid #333;
+      border-radius: 4px;
       overflow: hidden;
-      margin: 0 auto 20px auto;
+      margin: 10px auto 20px auto;
       position: relative;
+      transform: rotate(0deg);
+      transition: transform 0.3s ease-out, width 0.3s ease-out;
     }
     #red-ratio {
       height: 100%;
       background: #ff4444;
       transition: width 0.3s ease-out;
     }
-    /* Grid - using the perfect spacing & roundness from v1 */
+    /* Bounce animation for the ratio bar */
+    @keyframes bounce {
+      0% { transform: scale(1) rotate(var(--angle)); }
+      50% { transform: scale(1.1) rotate(var(--angle)); }
+      100% { transform: scale(1) rotate(var(--angle)); }
+    }
+    .bounce {
+      animation: bounce 0.5s ease-out;
+    }
+    
+    /* Grid styling */
     #grid {
       display: grid;
       grid-template-columns: repeat(5, 60px);
@@ -100,10 +145,14 @@
       height: 60px;
       background: #222;
       border-radius: 4px;
-      transition: background 0.3s;
-      /* Optional: if you prefer a border from v2/v3, uncomment below */
-      /* border: 2px solid #333; */
+      transition: background 0.3s, transform 0.2s, box-shadow 0.2s;
     }
+    /* Hover effect for tiles */
+    .tile:hover {
+      transform: scale(1.05);
+      box-shadow: 0 0 8px rgba(255,255,255,0.5);
+    }
+    
     /* Instructions */
     #instructions {
       margin-top: 20px;
@@ -119,26 +168,27 @@
     <div id="volume-btn">🔊</div>
   </div>
 
-  <div id="stats">
-    <div id="peaks">
-      <div>
-        <div class="peak-label">RED PEAK</div>
-        <div id="red-peak" class="peak-value">+0</div>
-      </div>
-      <div>
-        <div class="peak-label">BLUE PEAK</div>
-        <div id="blue-peak" class="peak-value">+0</div>
-      </div>
+  <!-- Scoreboard -->
+  <div id="scoreboard">
+    <!-- Top row: Peak values -->
+    <div id="peaks-row">
+      <div id="red-peak" class="peak-left">+0</div>
+      <div id="blue-peak" class="peak-right">+0</div>
     </div>
-    <div id="scores">
-      <div class="score red">🔴<span id="red">0</span></div>
-      <div class="score blue">🔵<span id="blue">0</span></div>
-    </div>
-    <div id="ratio-bar">
-      <div id="red-ratio"></div>
+    <!-- Bottom row: Current scores and net difference -->
+    <div id="current-row">
+      <div id="red" class="score-left">0</div>
+      <div id="net-diff" class="score-center">0</div>
+      <div id="blue" class="score-right">0</div>
     </div>
   </div>
 
+  <!-- Ratio bar (seesaw) -->
+  <div id="ratio-bar">
+    <div id="red-ratio"></div>
+  </div>
+
+  <!-- Grid -->
   <div id="grid"></div>
   <div id="instructions">CLICK TO TILT</div>
 
@@ -147,18 +197,24 @@
     let cycleSpeed = 800;
     let redScore = 0;
     let blueScore = 0;
-    let redPeak = 0;
-    let bluePeak = 0;
+    // Peak values: highest recorded advantage (always positive)
+    let redPeakValue = 0;
+    let bluePeakValue = 0;
     let isLocked = false;
     let cycleInterval;
-    let masterVolume = 0.5;
+    const MAX_TILT = 45; // Maximum tilt in degrees
 
+    // Bounce threshold: bounce if net difference changes by more than 4 points.
+    let previousNetDiff = 0;
+    const BOUNCE_THRESHOLD = 4;
+
+    let masterVolume = 0.5;
     // Setup Audio Context and Volume Control
     const audioContext = new (window.AudioContext || window.webkitAudioContext)();
     const gainNode = audioContext.createGain();
     gainNode.connect(audioContext.destination);
     gainNode.gain.value = masterVolume;
-
+    
     const volumeLevels = [0, 0.3, 0.6, 1];
     let currentVolume = 2;
     document.getElementById('volume-btn').addEventListener('click', () => {
@@ -168,28 +224,31 @@
       document.getElementById('volume-btn').textContent =
         ['🔇', '🔈', '🔉', '🔊'][currentVolume];
     });
-
-    // Tilt sound effect
-    function playTilt() {
+    
+    // Clunk sound effect (pixel art style) modulated by tile distribution.
+    function playClunk(redCount, blueCount) {
+      const total = redCount + blueCount;
+      if (total === 0) return;
+      // Frequency ranges from 120 Hz (all blue) to 200 Hz (all red)
+      const frequency = 120 + (redCount / total) * 80;
       const osc = audioContext.createOscillator();
       osc.type = 'square';
-      osc.frequency.setValueAtTime(120 + Math.random() * 80, audioContext.currentTime);
+      osc.frequency.setValueAtTime(frequency, audioContext.currentTime);
       
-      const gain = audioContext.createGain();
-      osc.connect(gain);
-      gain.connect(gainNode);
+      const clunkGain = audioContext.createGain();
+      osc.connect(clunkGain);
+      clunkGain.connect(gainNode);
       
-      gain.gain.setValueAtTime(masterVolume * 0.3, audioContext.currentTime);
-      gain.gain.exponentialRampToValueAtTime(0.001, audioContext.currentTime + 0.2);
+      clunkGain.gain.setValueAtTime(masterVolume * 0.3, audioContext.currentTime);
+      clunkGain.gain.exponentialRampToValueAtTime(0.001, audioContext.currentTime + 0.2);
       
       osc.start();
       osc.stop(audioContext.currentTime + 0.25);
     }
-
-    // Grid setup using version 1's grid design
+    
+    // Grid setup: track state (true = red, false = blue)
     const grid = document.getElementById('grid');
     const tiles = [];
-    // Using an array to track state: true = red, false = blue
     const tileStates = new Array(GRID_SIZE * GRID_SIZE).fill(false);
     for (let i = 0; i < GRID_SIZE * GRID_SIZE; i++) {
       const tile = document.createElement('div');
@@ -197,7 +256,7 @@
       grid.appendChild(tile);
       tiles.push(tile);
     }
-
+    
     // Start cycling colors (randomly red or blue)
     function startCycle() {
       cycleInterval = setInterval(() => {
@@ -209,61 +268,118 @@
       }, cycleSpeed);
     }
     startCycle();
-
-    // Update peaks with glowing effect
-    function updatePeaks() {
-      const currentRedPeak = redScore - blueScore;
-      const currentBluePeak = blueScore - redScore;
+    
+    // Update the scoreboard:
+    // - Top row: update redPeak and bluePeak if current advantage exceeds previous,
+    //   and apply golden glow (and ripple) only if the current advantage equals the record.
+    // - Bottom row: update red and blue scores and net difference (always positive)
+    function updateScoreboard() {
+      // Compute current net difference (delta) and its absolute value.
+      const delta = redScore - blueScore;
+      const absDelta = Math.abs(delta);
       
-      const redPeakElement = document.getElementById('red-peak');
-      const bluePeakElement = document.getElementById('blue-peak');
+      // Update peak values (record positive differences)
+      if (delta > redPeakValue) {
+        redPeakValue = delta;
+        const redPeakEl = document.getElementById('red-peak');
+        redPeakEl.textContent = '+' + redPeakValue;
+        redPeakEl.classList.add('highlight', 'peak-ripple');
+        setTimeout(() => redPeakEl.classList.remove('peak-ripple'), 500);
+      }
+      if (-delta > bluePeakValue) {
+        bluePeakValue = -delta;
+        const bluePeakEl = document.getElementById('blue-peak');
+        bluePeakEl.textContent = '+' + bluePeakValue;
+        bluePeakEl.classList.add('highlight', 'peak-ripple');
+        setTimeout(() => bluePeakEl.classList.remove('peak-ripple'), 500);
+      }
       
-      if (currentRedPeak > redPeak) {
-        redPeak = currentRedPeak;
-        redPeakElement.textContent = `+${redPeak}`;
-        redPeakElement.classList.add('highlight');
-        setTimeout(() => redPeakElement.classList.remove('highlight'), 500);
+      // Always update top row texts (if not current record, they remain neutral grey)
+      const redPeakEl = document.getElementById('red-peak');
+      const bluePeakEl = document.getElementById('blue-peak');
+      redPeakEl.textContent = '+' + redPeakValue;
+      bluePeakEl.textContent = '+' + bluePeakValue;
+      
+      if (delta === redPeakValue) {
+        redPeakEl.classList.add('highlight');
+      } else {
+        redPeakEl.classList.remove('highlight');
       }
-      if (currentBluePeak > bluePeak) {
-        bluePeak = currentBluePeak;
-        bluePeakElement.textContent = `+${bluePeak}`;
-        bluePeakElement.classList.add('highlight');
-        setTimeout(() => bluePeakElement.classList.remove('highlight'), 500);
+      if (-delta === bluePeakValue) {
+        bluePeakEl.classList.add('highlight');
+      } else {
+        bluePeakEl.classList.remove('highlight');
       }
+      
+      // Update the bottom row with current scores.
+      document.getElementById('red').textContent = redScore;
+      document.getElementById('blue').textContent = blueScore;
+      
+      // Update the net difference (always positive) and color it appropriately.
+      const netDiffEl = document.getElementById('net-diff');
+      netDiffEl.textContent = absDelta;
+      if (delta > 0) {
+        netDiffEl.style.color = '#ff4444';
+      } else if (delta < 0) {
+        netDiffEl.style.color = '#0066ff';
+      } else {
+        netDiffEl.style.color = '#888';
+      }
+      
+      // Bounce effect if net difference changes by more than the threshold.
+      if (Math.abs(absDelta - previousNetDiff) > BOUNCE_THRESHOLD) {
+        const ratioBar = document.getElementById('ratio-bar');
+        ratioBar.style.setProperty('--angle', currentAngle + 'deg');
+        ratioBar.classList.add('bounce');
+        setTimeout(() => ratioBar.classList.remove('bounce'), 500);
+      }
+      previousNetDiff = absDelta;
     }
-
-    // Update ratio bar width
+    
+    // Global to store the current angle for the bounce animation.
+    let currentAngle = 0;
+    // Update ratio bar width and tilt (seesaw effect)
     function updateRatio() {
       const total = redScore + blueScore;
       const redWidth = total === 0 ? 0 : (redScore / total) * 100;
       document.getElementById('red-ratio').style.width = `${redWidth}%`;
+      
+      // Compute tilt angle: angle = ((blueScore - redScore) / total) * MAX_TILT.
+      if (total > 0) {
+        currentAngle = ((blueScore - redScore) / total) * MAX_TILT;
+      } else {
+        currentAngle = 0;
+      }
+      document.getElementById('ratio-bar').style.transform = `rotate(${currentAngle}deg)`;
     }
-
-    // Click handler to lock the grid and update scores
+    
+    // Click handler: only allow one valid score-adding click per cycle.
     grid.addEventListener('click', () => {
       if (isLocked) return;
-      
       isLocked = true;
+      // Disable pointer events on grid to prevent extra clicks in this cycle.
+      grid.style.pointerEvents = 'none';
       clearInterval(cycleInterval);
-      playTilt();
       
-      // Count red and blue tiles using the stored states
+      // Count red and blue tiles.
       const redCount = tileStates.filter(state => state).length;
       const blueCount = GRID_SIZE * GRID_SIZE - redCount;
       
+      // Play clunk sound.
+      playClunk(redCount, blueCount);
+      
+      // Update scores.
       redScore += redCount;
       blueScore += blueCount;
-      
-      document.getElementById('red').textContent = redScore;
-      document.getElementById('blue').textContent = blueScore;
-      updatePeaks();
+      updateScoreboard();
       updateRatio();
       
-      // Increase cycling speed (min 200ms)
+      // Increase cycling speed (minimum 200ms)
       cycleSpeed = Math.max(200, cycleSpeed * 0.9);
       setTimeout(() => {
         tiles.forEach(tile => tile.style.background = '#222');
         isLocked = false;
+        grid.style.pointerEvents = 'auto';
         startCycle();
       }, 1500);
     });
